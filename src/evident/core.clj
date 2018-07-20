@@ -14,7 +14,7 @@
             ast children)
     ast))
 
-(defn- ctx-convert [ctx node]
+(defn- convert-ast [ctx node]
   (let [node (if (and (= (-> node :fn :op) :var) (= (-> node :fn :var) #'!))
                ;; (! foo bar) => (foo effs# bar)
                (let [{:keys [ctx-name ctx-atom]} ctx
@@ -31,13 +31,26 @@
                                   args)
                   :children [:fn :args]})
                node)]
-    (map-children (partial ctx-convert ctx) node)))
+    (map-children (partial convert-ast ctx) node)))
+
+(defn- ctx-convert [ctx-name form]
+  (->> form ana/analyze (convert-ast {:ctx-name ctx-name, :ctx-atom (atom nil)}) emit-form))
 
 (defmacro effn [args ctx-proj & body]
   (let [ctx-name (gensym 'effs)]
-    (->> `(fn [tmp-ctx-name# ~@args]
-            (let [~ctx-name (select-keys tmp-ctx-name# ~ctx-proj)]
-              ~@body))
-         ana/analyze
-         (ctx-convert {:ctx-name ctx-name, :ctx-atom (atom nil)})
-         emit-form)))
+    (ctx-convert ctx-name `(fn [tmp-ctx-name# ~@args]
+                             (let [~ctx-name (select-keys tmp-ctx-name# ~ctx-proj)]
+                               ~@body)))))
+
+(defmacro deffn [name args ctx-proj & body]
+  (let [ctx-name (gensym 'effs)]
+    (ctx-convert ctx-name `(defn ~name [tmp-ctx-name# ~@args]
+                             (let [~ctx-name (select-keys tmp-ctx-name# ~ctx-proj)]
+                               ~@body)))))
+
+(defn call-with-effects [f effs & args]
+  (apply f effs args))
+
+(defmacro with-effects [effs & body]
+  `(let [effs# ~effs]
+     ((effn [effs*#] (keys effs*#) ~@body) effs# effs#)))
