@@ -2,6 +2,8 @@
   (:require [clojure.tools.analyzer.jvm :as ana]
             [clojure.tools.analyzer.passes.jvm.emit-form :refer [emit-form]]))
 
+;;; FIXME: `effn` can't close over anything because ana/analyze doesn't get an env argument.
+
 (defn ! [& _] (assert false "evident.core/! used outside evident.core/effn"))
 
 (defn- map-children [f ast]
@@ -52,5 +54,6 @@
   (apply f effs args))
 
 (defmacro with-effects [effs & body]
+  ;; HACK: Need to pass `effs#` twice because `effn` can't close over anything:
   `(let [effs# ~effs]
      ((effn [effs*#] (keys effs*#) ~@body) effs# effs#)))
