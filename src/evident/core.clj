@@ -54,7 +54,7 @@
 (defn call-with-effects [f effs & args]
   (apply f effs args))
 
-;; OPTIMIZE: Get rid of the beta-redex.
 (defmacro with-effects [effs & body]
-  `(let [effs# ~effs]
-     (call-with-effects (effn [] (keys effs#) ~@body) effs#)))
+  (let [ctx-name (gensym 'effs)]
+    `(let [~ctx-name ~effs]
+       ~(ctx-convert &env ctx-name `(do ~@body)))))
